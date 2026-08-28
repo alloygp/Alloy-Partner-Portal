@@ -2279,6 +2279,16 @@ export default function ProposalsScreen() {
       return n;
     } finally {
       draining.current = false;
+      // The matching overlay is a FULL-SCREEN blocking scrim raised per lead by
+      // mintLead, and this is the only function that calls mintLead — so this is
+      // the only correct place to lower it. It used to be cleared solely in
+      // syncNow's finally, i.e. only when a human clicked "Sync intake". The
+      // automatic drain (mount + 3-min tick) reaches mintLead without going
+      // through syncNow, so a lead that arrived on its own raised the scrim and
+      // nothing ever took it down: the cockpit locked until a page reload, with
+      // "Matching <community>…" spinning forever. The lead itself was already
+      // minted and matched — only the overlay was stuck.
+      setMatching(null);
     }
   };
 
