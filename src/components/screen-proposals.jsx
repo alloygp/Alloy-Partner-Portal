@@ -5,6 +5,10 @@ import { getLeads, enrichLead, PAIN_POINTS, pricing, freshWatch } from '../lib/p
 import { camFor } from '../lib/camProfiles.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
 import { recommendTier, tierById } from '../lib/proposalTier.js';
+import {
+  BUDGET_OPTIONS, TIMELINE_OPTIONS, COMMUNITY_TYPE_OPTIONS,
+  MANAGEMENT_STATUS_OPTIONS, ROLE_OPTIONS, withCurrent, isOffList,
+} from '../lib/intakeVocab.js';
 import { parseCcInput, CC_MAX } from '../lib/ccList.js';
 import { selectIntakeBatch, junkStatusForReason } from '../lib/intakeDrain.js';
 import { qualifyLead } from '../lib/leads.js';
@@ -1690,13 +1694,34 @@ function EditDetailsModal({ sub, onClose, onSave }) {
     perHome: sub.perHome || 0, quote: sub.quote || '',
   });
   const upd = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  // What the recommendation will be when this is saved. Shown live, because the
+  // tier decides the price on the BOARD's document and it is derived from these
+  // answers — editing a budget used to change the offer with no visible feedback
+  // until the toast after saving.
+  const rec = recommendTier({ homes: Number(f.homes) || 0, budget: f.budget, metaStatus: f.metaStatus, metaType: f.metaType });
+  const tierChanges = rec.tierId !== sub.tierId;
   // helper returns elements (not a component) so inputs keep focus across keystrokes
   const field = (k, label, opts = {}) => (
     <label className={'fx-ef' + (opts.full ? ' full' : '')} key={k}>
       <span className="fx-ef-k">{label}</span>
       {opts.area
         ? <textarea value={f[k]} rows={3} onChange={(e) => upd(k, e.target.value)} />
-        : <input type={opts.num ? 'number' : 'text'} step={opts.num ? '0.01' : undefined} value={f[k]} onChange={(e) => upd(k, opts.num ? (parseFloat(e.target.value) || 0) : e.target.value)} />}
+        : opts.options
+          // A picker, not a text box: these answers are matched by KEYWORD to
+          // recommend a tier, so "Financial" or "low budget" — both reasonable
+          // things to type — silently matched nothing and left the tier alone.
+          // Off-list values (older form wording, landing-page leads) are kept as
+          // their own option rather than being blanked on save.
+          ? (
+            <>
+              <select value={f[k]} onChange={(e) => upd(k, e.target.value)}>
+                <option value="">— not answered —</option>
+                {withCurrent(opts.options, f[k]).map((o) => <option key={o} value={o}>{o}</option>)}
+              </select>
+              {isOffList(opts.options, f[k]) && <span className="fx-ef-note">Not one of the form's current options — kept as submitted.</span>}
+            </>
+          )
+          : <input type={opts.num ? 'number' : 'text'} step={opts.num ? '0.01' : undefined} value={f[k]} onChange={(e) => upd(k, opts.num ? (parseFloat(e.target.value) || 0) : e.target.value)} />}
     </label>
   );
   return (
@@ -1707,19 +1732,24 @@ function EditDetailsModal({ sub, onClose, onSave }) {
           <div className="fx-edit-grid">
             {field('community', 'Community', { full: true })}
             {field('contact', 'Contact')}
-            {field('contactRole', 'Role')}
+            {field('contactRole', 'Role', { options: ROLE_OPTIONS })}
             {field('email', 'Email')}
             {field('phone', 'Phone')}
             {field('city', 'City / market')}
             {field('homes', 'Homes', { num: true })}
-            {field('metaType', 'Type')}
-            {field('metaStatus', 'Current management status')}
+            {field('metaType', 'Type', { options: COMMUNITY_TYPE_OPTIONS })}
+            {field('metaStatus', 'Current management status', { options: MANAGEMENT_STATUS_OPTIONS })}
             {field('dues', 'Monthly dues')}
-            {field('engageTimeline', 'Timeline')}
-            {field('budget', 'Budget')}
+            {field('engageTimeline', 'Timeline', { options: TIMELINE_OPTIONS })}
+            {field('budget', 'Budget', { options: BUDGET_OPTIONS })}
             {field('perHome', 'Price / home ($/mo)', { num: true })}
             {field('quote', 'In their words (narrative)', { full: true, area: true })}
           </div>
+        </div>
+        <div className="fx-edit-rec" data-changed={tierChanges ? 'yes' : 'no'}>
+          <span className="k">Recommended tier{tierChanges ? ' (changes on save)' : ''}</span>
+          <span className="v">{rec.tierName}</span>
+          <span className="why">{rec.why}</span>
         </div>
         <div className="fx-edit-actions">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
