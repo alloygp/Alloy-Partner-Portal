@@ -647,6 +647,15 @@ function ReviewScreen({ subs, selectedId, sub, inbox, onOpenLead, onBack, onSele
               <div className="v2-ctx-row"><span className="v2-ctx-k">Dues</span><span className="v2-ctx-v">{sub.dues}</span></div>
               <div className="v2-ctx-row"><span className="v2-ctx-k">Timeline</span><span className="v2-ctx-v">{sub.engageTimeline}</span></div>
               <div className="v2-ctx-row full"><span className="v2-ctx-k">Budget</span><span className="v2-ctx-v">{sub.budget}</span></div>
+              {/* Both of these were mapped at intake and then discarded — no column,
+                  no read, nowhere on screen. `services` is now what decides the
+                  recommended tier, so a CAM has to be able to see the answer it was
+                  derived from; amenities is simply information the board gave us
+                  that nobody could read. Rendered only when present, so older
+                  leads (and postcard-landing leads, which have neither) are
+                  unchanged rather than showing empty rows. */}
+              {sub.services ? <div className="v2-ctx-row full"><span className="v2-ctx-k">Services asked for</span><span className="v2-ctx-v">{sub.services}</span></div> : null}
+              {sub.amenities ? <div className="v2-ctx-row full"><span className="v2-ctx-k">Amenities</span><span className="v2-ctx-v">{sub.amenities}</span></div> : null}
             </div>
             <div className="v2-ctx-quote"><div className="v2-ctx-quote-k">In their words</div><div className="v2-quote">"{sub.quote}"</div></div>
           </div>
@@ -2272,6 +2281,10 @@ export default function ProposalsScreen() {
         // reads old leads correctly. Never persisted before, so the signal died
         // with the mint and any later edit re-derived without it.
         services: raw.services || null,
+        // Same gap, one line below it in proposalIntake: the board tells us they
+        // have a pool, a clubhouse, a gated entry — and the answer was dropped.
+        // Doesn't feed the tier; it is context a CAM should be able to read.
+        amenities: raw.amenities || null,
         // Minted tiers are always derived; only a human sets this.
         tier_manual: false,
         // Origin matters: sync-whatconverts only auto-archives source='whatconverts'

@@ -1,4 +1,4 @@
--- The two facts the tier recommendation needs and the proposals table never kept.
+-- The facts the tier recommendation needs and the proposals table never kept.
 --
 -- 1. services — WHAT THE BOARD ACTUALLY ASKED FOR.
 --
@@ -40,16 +40,25 @@
 -- reintroduce the bug it replaced. The two cases are indistinguishable from the
 -- data, so intent gets recorded explicitly.
 --
--- Both columns are nullable with a safe default and nothing reads them until the
+-- Every column here is nullable with a safe default and nothing reads them until the
 -- application code that follows is deployed, so this migration is orderable
 -- before that deploy and is a no-op until then.
 
 alter table public.proposals
   add column if not exists services text,
-  add column if not exists tier_manual boolean not null default false;
+  add column if not exists tier_manual boolean not null default false,
+  -- 3. amenities — the same gap as `services`, one line below it in
+  -- proposalIntake.js: the board tells us they have a pool, a clubhouse, a gated
+  -- entry, a marina, and the answer was mapped and then discarded. It does not
+  -- feed the tier; it is context a CAM should be able to read on the card, and
+  -- material a tailored proposal can eventually reference.
+  add column if not exists amenities text;
 
 comment on column public.proposals.services is
   'The intake form''s "Services you''re looking for" answer, as the raw comma-joined labels the board submitted. Primary input to the tier recommendation; mapped per-CAM in src/lib/camProfiles.js -> serviceTiers.';
 
 comment on column public.proposals.tier_manual is
   'true when a human set tier_id in Build. Suppresses automatic re-derivation, which otherwise overwrites the choice on the next edit. Cleared when staff hand the tier back to the recommendation.';
+
+comment on column public.proposals.amenities is
+  'The intake form''s "Amenities" answer, as submitted. Context for the CAM and for tailoring a proposal; does not feed the tier recommendation.';

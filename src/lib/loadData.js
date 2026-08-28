@@ -23,7 +23,7 @@ export function proposalRowToRaw(p) {
     // The board's service answer (primary tier signal) and whether a human set
     // the tier by hand. Both must survive a reload or every later edit re-derives
     // without the signal that produced the current tier.
-    services: p.services || '', tierManual: !!p.tier_manual,
+    services: p.services || '', tierManual: !!p.tier_manual, amenities: p.amenities || '',
     boardToken: p.board_token, sentAt: p.sent_at || null,
     // receivedAt = when the board actually submitted the intake form (the real
     // age of the lead). arrivedAt = when a sync minted this row, which can be
