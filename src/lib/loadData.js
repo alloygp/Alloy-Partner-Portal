@@ -20,6 +20,10 @@ export function proposalRowToRaw(p) {
     quoteValue: p.quote_value != null ? p.quote_value : undefined,
     salesValue: p.sales_value != null ? p.sales_value : undefined,
     tierId: p.tier_id, notes: p.notes || [], _dbId: p.id,
+    // The board's service answer (primary tier signal) and whether a human set
+    // the tier by hand. Both must survive a reload or every later edit re-derives
+    // without the signal that produced the current tier.
+    services: p.services || '', tierManual: !!p.tier_manual,
     boardToken: p.board_token, sentAt: p.sent_at || null,
     // receivedAt = when the board actually submitted the intake form (the real
     // age of the lead). arrivedAt = when a sync minted this row, which can be

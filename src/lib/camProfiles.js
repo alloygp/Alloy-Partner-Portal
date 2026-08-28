@@ -35,6 +35,45 @@ const CMGT_PROFILE = {
   contact: { web: 'cmgt.org', email: 'proposals@cmgt.org', phone: '(225) 791-1505' },
   team: CMGT_TEAM,
   tiers: CMGT_TIERS,
+  // ── Services you're looking for -> tier ──────────────────────────────────
+  //
+  // The board's own answer decides the recommendation: highest implied tier wins
+  // (proposalServiceTiers.js). Keys are the EXACT option labels CMGT's intake form
+  // offers, because that is the string WhatConverts captures and stores.
+  //
+  // `recommendable` is CMGT's sales policy, not a capability list: Financial &
+  // Administrative is a DOWNSELL they do not open with, so nothing can recommend
+  // it automatically. A board that ticks only financial services is quoted
+  // Full-Service, and staff are told the downsell exists (rec.downsellFrom) and
+  // can set it by hand in Build.
+  //
+  // The financial/full split below follows CMGT's own tier contents in
+  // boardData.js — assessment collection, statements, insurance monitoring and the
+  // homeowner portal are all inside Financial & Administrative; anything needing
+  // someone physically present is not. Worth confirming with CMGT, but it only
+  // affects the downsell hint, never the recommendation.
+  //
+  // ADDING AN OPTION TO THE FORM: add it here too. proposalServiceTiers.test.js
+  // asserts every label CMGT's form offers has an entry, so a new option cannot
+  // silently do nothing. Old labels stay as aliases — leads already in the
+  // pipeline carry the wording they were submitted with.
+  serviceTiers: {
+    rank: ['financial', 'full', 'onsite'],
+    recommendable: ['full', 'onsite'],
+    map: {
+      'On-site support': 'onsite',
+      'On-site staff': 'onsite',            // alias — copy not final
+      'Full financial management': 'financial',
+      'Collections / delinquency': 'financial',
+      'Resident communication': 'financial',
+      'Vendor coordination': 'full',
+      'Board meeting support': 'full',
+      'After-hours emergency': 'full',
+      'Maintenance coordination': 'full',
+      'Compliance & insurance': 'full',
+      'Reserve planning': 'full',
+    },
+  },
   onboarding: CMGT_ONBOARDING,
   includes: CMGT_INCLUDES,
   uvps: CMGT_UVPS,

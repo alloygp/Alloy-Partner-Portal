@@ -4,7 +4,8 @@ import { I } from './icons.jsx';
 import { getLeads, enrichLead, PAIN_POINTS, pricing, freshWatch } from '../lib/proposalMockData.js';
 import { camFor } from '../lib/camProfiles.js';
 import { leadToProposalRaw } from '../lib/proposalIntake.js';
-import { recommendTier, tierById } from '../lib/proposalTier.js';
+import { recommendTier, tierById, TIERS } from '../lib/proposalTier.js';
+import { deriveTierAndPrice } from '../lib/proposalReprice.js';
 import {
   BUDGET_OPTIONS, TIMELINE_OPTIONS, COMMUNITY_TYPE_OPTIONS,
   MANAGEMENT_STATUS_OPTIONS, ROLE_OPTIONS, withCurrent, isOffList,
@@ -1692,14 +1693,21 @@ function EditDetailsModal({ sub, onClose, onSave }) {
     homes: sub.homes || 0, metaType: sub.metaType || '', metaStatus: sub.metaStatus || '',
     dues: sub.dues || '', engageTimeline: sub.engageTimeline || '', budget: sub.budget || '',
     perHome: sub.perHome || 0, quote: sub.quote || '',
+    // '' = follow the recommendation. Anything else is a deliberate human choice
+    // and suppresses re-derivation from then on (proposals.tier_manual).
+    tierOverride: sub.tierManual ? (sub.tierId || '') : '',
   });
   const upd = (k, v) => setF((p) => ({ ...p, [k]: v }));
   // What the recommendation will be when this is saved. Shown live, because the
   // tier decides the price on the BOARD's document and it is derived from these
   // answers — editing a budget used to change the offer with no visible feedback
   // until the toast after saving.
-  const rec = recommendTier({ homes: Number(f.homes) || 0, budget: f.budget, metaStatus: f.metaStatus, metaType: f.metaType });
-  const tierChanges = rec.tierId !== sub.tierId;
+  const serviceTiers = cam().serviceTiers;
+  // `services` is not editable here but IS the primary signal, so it has to be
+  // carried into the preview or the readout would contradict what saving does.
+  const rec = recommendTier({ homes: Number(f.homes) || 0, budget: f.budget, metaStatus: f.metaStatus, metaType: f.metaType, services: sub.services }, { serviceTiers });
+  const effectiveTierId = f.tierOverride || rec.tierId;
+  const tierChanges = effectiveTierId !== sub.tierId;
   // helper returns elements (not a component) so inputs keep focus across keystrokes
   const field = (k, label, opts = {}) => (
     <label className={'fx-ef' + (opts.full ? ' full' : '')} key={k}>
@@ -1743,13 +1751,33 @@ function EditDetailsModal({ sub, onClose, onSave }) {
             {field('engageTimeline', 'Timeline', { options: TIMELINE_OPTIONS })}
             {field('budget', 'Budget', { options: BUDGET_OPTIONS })}
             {field('perHome', 'Price / home ($/mo)', { num: true })}
+            {/* The one place a human can name the tier. Needed because a CAM's
+                downsell tier is deliberately never recommended (CMGT: Financial &
+                Administrative), so there would otherwise be no way to reach it. */}
+            <label className="fx-ef" key="tierOverride">
+              <span className="fx-ef-k">Service tier</span>
+              <select value={f.tierOverride} onChange={(e) => upd('tierOverride', e.target.value)}>
+                <option value="">Follow the recommendation ({rec.tierName})</option>
+                {TIERS.map((t) => <option key={t.id} value={t.id}>Set manually · {t.name}</option>)}
+              </select>
+              {!!f.tierOverride && <span className="fx-ef-note">Set by hand — the recommendation will no longer change it.</span>}
+            </label>
             {field('quote', 'In their words (narrative)', { full: true, area: true })}
           </div>
         </div>
         <div className="fx-edit-rec" data-changed={tierChanges ? 'yes' : 'no'}>
-          <span className="k">Recommended tier{tierChanges ? ' (changes on save)' : ''}</span>
-          <span className="v">{rec.tierName}</span>
-          <span className="why">{rec.why}</span>
+          <span className="k">{f.tierOverride ? 'Tier (set by hand)' : 'Recommended tier'}{tierChanges ? ' · changes on save' : ''}</span>
+          <span className="v">{tierById(effectiveTierId).name}</span>
+          <span className="why">
+            {f.tierOverride
+              ? `The form points at ${rec.tierName}. ${rec.why}`
+              : rec.why}
+            {/* A tier this CAM won't lead with, that the board's answers point at.
+                Staff-facing only — the board never sees the downsell. */}
+            {rec.downsellFrom && !f.tierOverride
+              ? ` They only asked for what ${rec.downsellName} covers — available as a downsell if the call goes that way.`
+              : ''}
+          </span>
         </div>
         <div className="fx-edit-actions">
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
@@ -2099,29 +2127,36 @@ export default function ProposalsScreen() {
     // UI, so a stored tier can only ever be a derived value, never a human choice.
     // The RATE is different — Build lets staff set it — so it is only re-based when
     // it is still the outgoing tier's default, i.e. demonstrably never touched.
-    const rec = recommendTier({ homes, budget: f.budget, metaStatus: f.metaStatus, metaType: f.metaType });
-    const tierChanged = rec.tierId !== current.tierId;
-    const outgoingDefault = tierById(current.tierId).defaultRate;
-    const rateUntouched = outgoingDefault == null ? perHome === 0 : Math.abs(perHome - outgoingDefault) < 1e-9;
-    const nextPerHome = tierChanged && rateUntouched ? (rec.perHome != null ? rec.perHome : 0) : perHome;
-    const patched = { ...current, ...f, homes, perHome: nextPerHome, tierId: rec.tierId };
+    // The modal's tier picker: '' = follow the recommendation, anything else is a
+    // human decision that must survive every later edit.
+    const manual = !!f.tierOverride;
+    const facts = { ...f, homes, perHome, services: current.services,
+      tierManual: manual, tierId: manual ? f.tierOverride : current.tierId };
+    const d = deriveTierAndPrice(current, facts, { serviceTiers: cam().serviceTiers });
+    const rec = d.rec;
+    const tierChanged = d.tierId !== current.tierId;
+    const nextPerHome = d.perHome;
+    const patched = { ...current, ...f, homes, perHome: nextPerHome, tierId: d.tierId, tierManual: manual };
     // enrichLead prefers a row's existing quoteValue over deriving one, so the new
     // annual is computed here and passed in — otherwise the edit would persist a
     // fresh number to the database while the screen kept showing the old one.
-    const quoteValue = Math.round(pricing(patched).monthlyNum * 12);
+    const quoteValue = d.quoteValue;
     // Re-enrich rather than patch: tierName, tierRec and intakeFlags are all
     // derived from these facts, and patching left them describing the old ones.
-    setSubs((p) => p.map((s) => s.id === selectedId ? enrichLead({ ...patched, quoteValue }) : s));
+    setSubs((p) => p.map((s) => s.id === selectedId ? enrichLead({ ...patched, quoteValue }, cam()) : s));
     persist(selectedId, {
       community: f.community, contact: f.contact, contact_role: f.contactRole, email: f.email, phone: f.phone,
       city: f.city, homes, meta_type: f.metaType, meta_status: f.metaStatus, dues: f.dues,
       engage_timeline: f.engageTimeline, budget: f.budget, per_home: nextPerHome, quote: f.quote,
-      tier_id: rec.tierId,
+      // d.tierId, NOT rec.tierId: when a staffer sets the tier by hand the
+      // recommendation is deliberately not what gets stored.
+      tier_id: d.tierId,
+      tier_manual: manual,
       // homes AND per_home both feed the floor, so the annual is re-derived here
       // as well — editing the door count silently invalidated it otherwise.
       quote_value: quoteValue,
     });
-    setToast({ msg: tierChanged ? `Details updated — tier is now ${rec.tierName}` : 'Details updated' });
+    setToast({ msg: tierChanged ? `Details updated — tier is now ${tierById(d.tierId).name}` : 'Details updated' });
   };
   // Layer B — apply hand-edited concerns to the focused lead's match + persist the
   // override to match_snapshot, so the cockpit, board doc, and reloads all use it.
@@ -2139,9 +2174,21 @@ export default function ProposalsScreen() {
     const patch = { ...fieldPatch };
     if (patch.homes != null) patch.homes = parseInt(patch.homes) || sub.homes;
     if (Object.keys(patch).length) {
-      setSubs((p) => p.map((s) => s.id === selectedId ? { ...s, ...patch } : s));
+      // RE-DERIVE, exactly as "Edit details" does. The call is the main way a
+      // board's real scope gets established — "we only want the financials", "we
+      // need someone on site" — and this path used to patch the fact and leave
+      // tier_id and per_home on whatever intake guessed, so the proposal sent at
+      // the wrong tier and the wrong price. Same function as saveDetails, so the
+      // two cannot drift again; a hand-set tier still wins (tierManual).
+      const current = subsRef.current.find((x) => x.id === selectedId) || sub;
+      const d = deriveTierAndPrice(current, patch, { serviceTiers: cam().serviceTiers });
+      const patched = { ...current, ...patch, perHome: d.perHome, tierId: d.tierId };
+      setSubs((p) => p.map((s) => s.id === selectedId
+        ? enrichLead({ ...patched, quoteValue: d.quoteValue }, cam())
+        : s));
       const cols = {}; Object.entries(patch).forEach(([k, v]) => { if (COL[k]) cols[COL[k]] = v; });
-      persist(selectedId, cols);
+      persist(selectedId, { ...cols, tier_id: d.tierId, per_home: d.perHome, quote_value: d.quoteValue });
+      if (d.tierChanged) setToast({ msg: `Realigned — tier is now ${tierById(d.tierId).name}` });
     }
     if (addedConcerns && addedConcerns.length) applyMatch([...sub.concerns, ...addedConcerns], sub.match);
     setToast({ msg: 'Proposal realigned from the call' });
@@ -2199,7 +2246,7 @@ export default function ProposalsScreen() {
     // leads on every tick.
     if (subsRef.current.some((s) => s.id === lead.id)) return null; // already in the pipeline
     if (archivedRef.current.some((s) => s.id === lead.id)) return null; // archived — stay gone
-    const raw = leadToProposalRaw(lead);
+    const raw = leadToProposalRaw(lead, { serviceTiers: cam().serviceTiers });
     if (live) {
       // .select() the generated board_token BACK. The magic-link secret is created
       // by a column default, so if we don't read it here the freshly minted row
@@ -2220,6 +2267,13 @@ export default function ProposalsScreen() {
         // lead from this insert, which on a backlog sync is weeks off.
         received_at: raw.receivedAt,
         status: 'new', selected_pains: raw.selectedPains, tier_id: raw.tierId || 'full', per_home: raw.perHome,
+        // The board's "Services you're looking for" answer — the primary input to
+        // the tier recommendation, kept as submitted so a later mapping change
+        // reads old leads correctly. Never persisted before, so the signal died
+        // with the mint and any later edit re-derived without it.
+        services: raw.services || null,
+        // Minted tiers are always derived; only a human sets this.
+        tier_manual: false,
         // Origin matters: sync-whatconverts only auto-archives source='whatconverts'
         // rows when their lead disappears upstream. Seeded rows must never match.
         source: 'whatconverts',
@@ -2237,7 +2291,7 @@ export default function ProposalsScreen() {
         if (live && snapshot) await supabase.from('proposals').update({ match_snapshot: snapshot }).eq('account_id', DATA.account.id).eq('lead_key', raw.id);
       } catch (e) { /* LLM unavailable → deterministic engine */ }
     }
-    const enriched = enrichLead({ ...raw, matchSnapshot: snapshot || undefined });
+    const enriched = enrichLead({ ...raw, matchSnapshot: snapshot || undefined }, cam());
     setSubs((p) => [enriched, ...p.filter((s) => s.id !== enriched.id)]);
     setEditorMap((m) => ({ ...m, [enriched.id]: (enriched.sections || []).map((x) => ({ ...x })) }));
     return enriched;

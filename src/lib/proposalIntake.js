@@ -46,7 +46,10 @@ export function painsFromFrustrations(frustrations) {
 
 // A WhatConverts lead (DATA.recentLeads shape: id/name/email/phone/company +
 // fields[{name,value}]) → the raw proposal shape enrichLead consumes.
-export function leadToProposalRaw(lead) {
+// `opts.serviceTiers` is the CAM's service->tier map (camProfiles.js). With it,
+// the board's "Services you're looking for" answer decides the recommended tier;
+// without it the pre-existing budget/scale rules apply unchanged.
+export function leadToProposalRaw(lead, { serviceTiers } = {}) {
   const f = {};
   (lead.fields || []).forEach((x) => { f[norm(x.name).replace(/\*$/, "").trim()] = x.value; });
   const get = (...keys) => { for (const k of keys) { if (f[norm(k)]) return f[norm(k)]; } return ""; };
@@ -65,7 +68,8 @@ export function leadToProposalRaw(lead) {
   // The form's own answers pick the tier. This used to be hardcoded to the
   // Full-Service rate, so a board asking for "financial only" was quoted
   // full service. Staff can still override the rate in Build.
-  const rec = recommendTier({ homes: units.homes, budget, metaStatus, metaType });
+  const services = pick(idx, "services").value || get("services needed");
+  const rec = recommendTier({ homes: units.homes, budget, metaStatus, metaType, services }, { serviceTiers });
   return {
     id: lead.id, // wc_lead_id — becomes the proposal lead_key
     community: lead.company || pick(idx, "community").value || lead.name || "New community",
@@ -106,7 +110,7 @@ export function leadToProposalRaw(lead) {
     // monthly fee). Staff adjusts in Build.
     perHome: rec.perHome != null ? rec.perHome : 0,
     tierId: rec.tierId,
-    services: pick(idx, "services").value || get("services needed"),
+    services,
     amenities: get("amenities"),
   };
 }

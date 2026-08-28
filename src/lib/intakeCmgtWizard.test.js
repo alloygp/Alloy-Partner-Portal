@@ -15,6 +15,7 @@
 import { describe, it, expect } from "vitest";
 import { leadToProposalRaw, painsFromFrustrations } from "./proposalIntake.js";
 import { enrichLead, PAIN_POINTS } from "./proposalMockData.js";
+import { DEFAULT_CAM } from "./camProfiles.js";
 
 // Every frustration the wizard offers, verbatim (em dashes and curly apostrophes
 // included — they are what the form submits).
@@ -156,6 +157,28 @@ describe("CMGT intake wizard → proposal", () => {
     const out = enrichLead(raw);
     expect(out.tierId).toBeTruthy();
     expect(Array.isArray(out.concerns)).toBe(true);
+  });
+
+  it("the services answer drives the tier, end to end from the form field", () => {
+    // The whole chain: WhatConverts field named "Services needed" -> intakeFields
+    // resolution -> raw.services -> the CAM's map -> the recommendation.
+    const st = DEFAULT_CAM.serviceTiers;
+    const onsite = leadToProposalRaw(
+      wcLead({}, { "Services needed": "Full financial management, On-site support" }),
+      { serviceTiers: st },
+    );
+    expect(onsite.services).toMatch(/On-site support/);
+    expect(onsite.tierId).toBe("onsite");
+
+    // Only financial services: CMGT never opens with the downsell.
+    const financialOnly = leadToProposalRaw(
+      wcLead({}, { "Services needed": "Full financial management" }),
+      { serviceTiers: st },
+    );
+    expect(financialOnly.tierId).toBe("full");
+
+    // And without a CAM map, nothing about the old behaviour changes.
+    expect(leadToProposalRaw(wcLead({}, { "Services needed": "On-site support" })).tierId).toBe("full");
   });
 
   it("handles a lead with no fields at all without throwing", () => {
