@@ -228,7 +228,12 @@ function QualifyModal({ s, onClose, onQualify, onDisqualify }) {
             </div>
             <label className="v2-qual-label">Estimated quote value <span>· annual contract</span></label>
             <div className="v2-qual-money"><span>$</span><input type="number" min="0" step="100" value={val} onChange={(e) => setVal(parseFloat(e.target.value) || 0)} /><span className="u">/yr</span></div>
-            <div className="v2-qual-hint">Auto-filled from the recommended tier ({s.tierName} · {pricing(s).monthly}/mo{pricing(s).floored ? ' — minimum fee applies' : ''}). Adjust if you've agreed otherwise.</div>
+            {/* "Adjust if you've agreed otherwise" read as though this set the
+                price. It does not: the board document recomputes its own figure
+                from per-home x homes (boardData.js -> monthlyFor), and never
+                reads quoteValue. Someone correcting a price here would have
+                changed the pipeline number and nothing the board sees. */}
+            <div className="v2-qual-hint">Auto-filled from the recommended tier ({s.tierName} · {pricing(s).monthly}/mo{pricing(s).floored ? ' — minimum fee applies' : ''}). This is the pipeline figure only — <b>it does not change what the board is quoted</b>. To change their price, set the per-home rate in Edit details.</div>
             <div className="v2-qual-actions">
               <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
               <button className="btn btn-primary" onClick={() => { onQualify(s.id, owner, val); onClose(); }}><I.Check width={14} height={14} /> Qualify lead</button>
@@ -323,6 +328,7 @@ function MoveStageModal({ s, live, onClose, onMove, onSendInstead }) {
             </div>
             <label className="v2-qual-label">Estimated quote value <span>· annual contract</span></label>
             <div className="v2-qual-money"><span>$</span><input type="number" min="0" step="100" value={quote} onChange={(e) => setQuote(parseFloat(e.target.value) || 0)} /><span className="u">/yr</span></div>
+            <div className="v2-qual-hint">The pipeline figure — it does not change what the board is quoted. To change their price, set the per-home rate in Edit details.</div>
           </>)}
 
           {needs === 'salesValue' && (<>
