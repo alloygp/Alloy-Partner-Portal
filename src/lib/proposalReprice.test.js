@@ -18,7 +18,7 @@ describe('the transcript path reprices, which it never used to', () => {
     // What applyRealign passes when the transcript says the board wants on-site
     // presence. Before this function existed it patched the fact and left
     // tier_id/per_home alone, so the proposal still sent as Full-Service.
-    const out = deriveTierAndPrice(stored, { services: 'Vendor coordination, On-site support' }, opts);
+    const out = deriveTierAndPrice(stored, { services: 'Vendor coordination, On-site staff' }, opts);
     expect(out.tierId).toBe('onsite');
     expect(out.tierChanged).toBe(true);
     // On-site is a flat fee, so the per-home rate is dropped rather than carried.
@@ -51,7 +51,7 @@ describe('a staffer-set rate is not thrown away', () => {
   });
 
   it('re-bases a rate that is still the outgoing default', () => {
-    const out = deriveTierAndPrice(stored, { services: 'On-site support' }, opts);
+    const out = deriveTierAndPrice(stored, { services: 'On-site staff' }, opts);
     expect(out.perHome).toBe(0);          // on-site default (flat fee)
   });
 });

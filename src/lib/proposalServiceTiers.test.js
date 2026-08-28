@@ -23,7 +23,7 @@ const FORM_SERVICES = [
   'Reserve planning',
   'After-hours emergency',
   'Maintenance coordination',
-  'On-site support',
+  'On-site staff',
 ];
 
 describe('the CAM map is well-formed', () => {
@@ -60,19 +60,19 @@ describe('highest implied tier wins', () => {
     expect(rec({ homes: 175, services }).tierId).toBe('full');
   });
 
-  it('anything plus on-site support = on-site', () => {
-    const services = 'Full financial management, Collections / delinquency, On-site support';
+  it('anything plus on-site staff = on-site', () => {
+    const services = 'Full financial management, Collections / delinquency, On-site staff';
     expect(tierFromServices(services, ST).impliedTierId).toBe('onsite');
     const r = rec({ homes: 175, services });
     expect(r.tierId).toBe('onsite');
-    expect(r.why).toMatch(/On-site support/);
+    expect(r.why).toMatch(/On-site staff/);
   });
 
   it('on-site wins even at a small community — it is what they asked for', () => {
     // 24 homes: far below the 500 threshold that used to be the only route to
     // on-site, and exactly the board (Cozy Cove) whose narrative asked for
     // on-site presence three days a week.
-    expect(rec({ homes: 24, services: 'On-site support' }).tierId).toBe('onsite');
+    expect(rec({ homes: 24, services: 'On-site staff' }).tierId).toBe('onsite');
   });
 
   it('scale still reaches on-site with no services ticked, and keeps its own reason', () => {
@@ -117,7 +117,7 @@ describe('no map, no change', () => {
   it('leaves the pre-existing behaviour alone when a CAM has no serviceTiers', () => {
     // Every caller without an account in scope, and the demo boards.
     expect(recommendTier({ homes: 175, budget: 'Tight budget — financial only' }).tierId).toBe('financial');
-    expect(recommendTier({ homes: 175, services: 'On-site support' }).tierId).toBe('full');
+    expect(recommendTier({ homes: 175, services: 'On-site staff' }).tierId).toBe('full');
     expect(recommendTier({ homes: 175 }).downsellFrom).toBeNull();
   });
 });
@@ -132,8 +132,14 @@ describe('matching is tolerant of how the value arrives', () => {
   });
 
   it('survives curly apostrophes, dashes and sloppy whitespace', () => {
-    expect(servicesMatched('  ON-SITE   SUPPORT ', ST)).toContain('On-site support');
-    expect(servicesMatched('on—site support', ST)).toContain('On-site support');
+    expect(servicesMatched('  ON-SITE   STAFF ', ST)).toContain('On-site staff');
+    expect(servicesMatched('on—site staff', ST)).toContain('On-site staff');
+  });
+
+  it('still resolves the alias, because leads keep the wording they arrived with', () => {
+    // 'On-site support' was the wording before the form shipped 'On-site staff'.
+    expect(servicesMatched('On-site support', ST)).toContain('On-site support');
+    expect(rec({ homes: 175, services: 'On-site support' }).tierId).toBe('onsite');
   });
 
   it('returns nothing for an unticked question rather than guessing', () => {

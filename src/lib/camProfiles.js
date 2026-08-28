@@ -61,8 +61,11 @@ const CMGT_PROFILE = {
     rank: ['financial', 'full', 'onsite'],
     recommendable: ['full', 'onsite'],
     map: {
+      // The label the form actually offers (intake-form.config.js -> services).
+      'On-site staff': 'onsite',
+      // Alias: the wording considered before 'On-site staff' shipped. Harmless to
+      // keep and it costs nothing — a lead carries whatever it was submitted with.
       'On-site support': 'onsite',
-      'On-site staff': 'onsite',            // alias — copy not final
       'Full financial management': 'financial',
       'Collections / delinquency': 'financial',
       'Resident communication': 'financial',

@@ -164,10 +164,10 @@ describe("CMGT intake wizard → proposal", () => {
     // resolution -> raw.services -> the CAM's map -> the recommendation.
     const st = DEFAULT_CAM.serviceTiers;
     const onsite = leadToProposalRaw(
-      wcLead({}, { "Services needed": "Full financial management, On-site support" }),
+      wcLead({}, { "Services needed": "Full financial management, On-site staff" }),
       { serviceTiers: st },
     );
-    expect(onsite.services).toMatch(/On-site support/);
+    expect(onsite.services).toMatch(/On-site staff/);
     expect(onsite.tierId).toBe("onsite");
 
     // Only financial services: CMGT never opens with the downsell.
@@ -178,7 +178,7 @@ describe("CMGT intake wizard → proposal", () => {
     expect(financialOnly.tierId).toBe("full");
 
     // And without a CAM map, nothing about the old behaviour changes.
-    expect(leadToProposalRaw(wcLead({}, { "Services needed": "On-site support" })).tierId).toBe("full");
+    expect(leadToProposalRaw(wcLead({}, { "Services needed": "On-site staff" })).tierId).toBe("full");
   });
 
   it("handles a lead with no fields at all without throwing", () => {
